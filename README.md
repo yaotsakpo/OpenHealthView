@@ -133,12 +133,6 @@ OpenHealthView/
 - FHIR-compliant data management
 - Health insights generation and reporting
 
-### EB-2 NIW Demonstration
-- Showcases healthcare technology innovation
-- Demonstrates cost-effective scalable solutions
-- Professional-grade healthcare platform
-- Modern serverless architecture expertise
-
 ## 📝 License
 
 MIT License - Open source healthcare technology for advancing patient care through accessible digital solutions.

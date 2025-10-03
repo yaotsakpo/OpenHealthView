@@ -1,0 +1,39 @@
+service: openhealthview-api
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  region: us-east-1
+  stage: prod
+  environment:
+    NODE_ENV: production
+  httpApi:
+    cors: true
+
+functions:
+  api:
+    handler: lambda-handler.handler
+    timeout: 30
+    memorySize: 512
+    events:
+      - httpApi:
+          path: /{proxy+}
+          method: '*'
+      - httpApi:
+          path: /
+          method: '*'
+
+# No plugins needed for basic Lambda deployment
+
+package:
+  exclude:
+    - .git/**
+    - frontend/**
+    - server.js
+    - server.log
+    - test.txt
+    - sample.*
+    - "*.md"
+    - .vscode/**
+    - .github/**
+    - .serverless/**

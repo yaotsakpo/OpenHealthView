@@ -1,6 +1,8 @@
 const express = require('express');
 const cors = require('cors');
 const multer = require('multer');
+const ruralDataService = require('./data-services/ruralDataService');
+const dataUpdateService = require('./data-services/dataUpdateService');
 
 const app = express();
 
@@ -26,6 +28,115 @@ app.get('/health', (req, res) => {
         timestamp: new Date().toISOString(),
         environment: 'Local Development'
     });
+});
+
+// Rural Healthcare Interoperability Dashboard - Real Data
+app.get('/rural-hie', async (req, res) => {
+    try {
+        console.log('🏥 Generating rural HIE metrics with real government data...');
+        const ruralHealthMetrics = await ruralDataService.generateRuralHealthMetrics();
+        res.json(ruralHealthMetrics);
+    } catch (error) {
+        console.error('❌ Error in /rural-hie:', error);
+        res.status(500).json({ 
+            error: 'Failed to generate rural health metrics',
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
+// Rural Facility Network Status - Real Data
+app.get('/rural-network', async (req, res) => {
+    try {
+        console.log('🌐 Generating network topology with real facility data...');
+        const networkData = await ruralDataService.generateNetworkTopology();
+        res.json(networkData);
+    } catch (error) {
+        console.error('❌ Error in /rural-network:', error);
+        res.status(500).json({ 
+            error: 'Failed to generate network topology',
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
+// Admin endpoint to trigger manual data update
+app.post('/admin/update-data', async (req, res) => {
+    try {
+        console.log('🔄 Manual data update triggered via API...');
+        const results = await dataUpdateService.triggerManualUpdate();
+        res.json({
+            success: true,
+            message: 'Data update completed',
+            results: results,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('❌ Error in manual data update:', error);
+        res.status(500).json({ 
+            error: 'Failed to update data',
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
+// Admin endpoint to check data status
+app.get('/admin/data-status', async (req, res) => {
+    try {
+        const fs = require('fs').promises;
+        const path = require('path');
+        const cacheDir = path.join(__dirname, 'cache');
+        
+        const status = {
+            timestamp: new Date().toISOString(),
+            dataSources: {}
+        };
+
+        // Check each data source
+        const sources = ['cahFacilities', 'ruralClinics', 'shortageAreas'];
+        for (const source of sources) {
+            try {
+                const cacheFile = path.join(cacheDir, `${source}.json`);
+                const stats = await fs.stat(cacheFile);
+                const content = await fs.readFile(cacheFile, 'utf8');
+                const data = JSON.parse(content);
+                
+                status.dataSources[source] = {
+                    available: true,
+                    count: data.count || data.data?.length || 0,
+                    lastUpdated: data.lastUpdated,
+                    fileAge: Math.round((Date.now() - stats.mtime.getTime()) / (60 * 60 * 1000)), // hours
+                    source: data.source || 'automated'
+                };
+            } catch (error) {
+                status.dataSources[source] = {
+                    available: false,
+                    error: error.message,
+                    usingFallback: true
+                };
+            }
+        }
+
+        // Check update summary
+        try {
+            const summaryFile = path.join(cacheDir, 'update-summary.json');
+            const summaryContent = await fs.readFile(summaryFile, 'utf8');
+            const summary = JSON.parse(summaryContent);
+            status.lastUpdateAttempt = summary.lastUpdateAttempt;
+            status.nextScheduledUpdate = summary.nextUpdate;
+        } catch (error) {
+            status.lastUpdateAttempt = 'Unknown';
+            status.nextScheduledUpdate = 'Unknown';
+        }
+
+        res.json(status);
+    } catch (error) {
+        console.error('❌ Error checking data status:', error);
+        res.status(500).json({ 
+            error: 'Failed to check data status',
+            timestamp: new Date().toISOString()
+        });
+    }
 });
 
 // FHIR-compliant health data endpoint

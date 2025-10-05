@@ -23,6 +23,19 @@ functions:
           path: /
           method: '*'
 
+  # Scheduled data update function
+  scheduledDataUpdate:
+    handler: scheduled-update.handler
+    timeout: 900  # 15 minutes for data processing
+    memorySize: 1024
+    events:
+      - schedule:
+          rate: rate(24 hours)  # Run every 24 hours
+          description: 'Update rural healthcare data daily'
+          enabled: true
+    environment:
+      UPDATE_SOURCE: 'scheduled'
+
 # No plugins needed for basic Lambda deployment
 
 package:

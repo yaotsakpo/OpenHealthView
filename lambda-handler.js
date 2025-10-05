@@ -2,6 +2,10 @@ const serverlessExpress = require('@vendia/serverless-express').default || requi
 const express = require('express');
 const cors = require('cors');
 const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+const ruralDataService = require('./data-services/ruralDataService');
+const dataUpdateService = require('./data-services/dataUpdateService');
 
 const app = express();
 
@@ -26,6 +30,318 @@ app.get('/health', (req, res) => {
         timestamp: new Date().toISOString(),
         environment: 'AWS Lambda'
     });
+});
+
+// Rural Healthcare Interoperability Dashboard - Real Data
+app.get('/rural-hie', async (req, res) => {
+    try {
+        console.log('🏥 Generating rural HIE metrics with real government data...');
+        const ruralHealthMetrics = await ruralDataService.generateRuralHealthMetrics();
+        res.json(ruralHealthMetrics);
+    } catch (error) {
+        console.error('❌ Error in /rural-hie:', error);
+        res.status(500).json({ 
+            error: 'Failed to generate rural health metrics',
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
+// Rural Facility Network Status - Real Data
+app.get('/rural-network', async (req, res) => {
+    try {
+        console.log('🌐 Generating network topology with real facility data...');
+        const networkData = await ruralDataService.generateNetworkTopology();
+        res.json(networkData);
+    } catch (error) {
+        console.error('❌ Error in /rural-network:', error);
+        res.status(500).json({ 
+            error: 'Failed to generate network topology',
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
+// Admin endpoint to trigger manual data update
+app.post('/admin/update-data', async (req, res) => {
+    try {
+        console.log('🔄 Manual data update triggered via API...');
+        const results = await dataUpdateService.triggerManualUpdate();
+        res.json({
+            success: true,
+            message: 'Data update completed',
+            results: results,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('❌ Error in manual data update:', error);
+        res.status(500).json({ 
+            error: 'Failed to update data',
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
+// Admin endpoint to check data status
+app.get('/admin/data-status', async (req, res) => {
+    try {
+        const fs = require('fs').promises;
+        const path = require('path');
+        
+        // Use Lambda-compatible paths
+        const isLambda = process.env.AWS_LAMBDA_FUNCTION_NAME;
+        const cacheDir = isLambda ? '/tmp/cache' : path.join(__dirname, 'cache');
+        
+        const status = {
+            timestamp: new Date().toISOString(),
+            environment: isLambda ? 'AWS Lambda' : 'Local',
+            dataSources: {}
+        };
+
+        // Check each data source
+        const sources = ['cahFacilities', 'ruralClinics', 'shortageAreas'];
+        for (const source of sources) {
+            try {
+                const cacheFile = path.join(cacheDir, `${source}.json`);
+                const stats = await fs.stat(cacheFile);
+                const content = await fs.readFile(cacheFile, 'utf8');
+                const data = JSON.parse(content);
+                
+                status.dataSources[source] = {
+                    available: true,
+                    count: data.count || data.data?.length || 0,
+                    lastUpdated: data.lastUpdated,
+                    fileAge: Math.round((Date.now() - stats.mtime.getTime()) / (60 * 60 * 1000)), // hours
+                    source: data.source || 'automated'
+                };
+            } catch (error) {
+                status.dataSources[source] = {
+                    available: false,
+                    error: error.message,
+                    usingFallback: true
+                };
+            }
+        }
+
+        res.json(status);
+    } catch (error) {
+        console.error('❌ Error checking data status:', error);
+        res.status(500).json({ 
+            error: 'Failed to check data status',
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
+// Serve static frontend files
+const frontendHTML = `<!doctype html><html lang="en"><head><meta charset="utf-8"/><link rel="icon" href="/favicon.ico"/><meta name="viewport" content="width=device-width,initial-scale=1"/><meta name="theme-color" content="#000000"/><meta name="description" content="OpenHealthView - Rural Healthcare Dashboard"/><title>OpenHealthView - Rural Healthcare Dashboard</title><script defer="defer" src="/static/js/main.a5683b33.js"></script><link href="/static/css/main.3d35e97f.css" rel="stylesheet"></head><body><noscript>You need to enable JavaScript to run this app.</noscript><div id="root"></div></body></html>`;
+
+// Frontend routes
+app.get('/', (req, res) => {
+    res.setHeader('Content-Type', 'text/html');
+    res.send(frontendHTML);
+});
+
+// Serve static assets (CSS and JS)
+app.get('/static/css/main.3d35e97f.css', (req, res) => {
+    res.setHeader('Content-Type', 'text/css');
+    res.send(`/* OpenHealthView Styles - Production Build */
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Roboto','Oxygen','Ubuntu','Cantarell','Fira Sans','Droid Sans','Helvetica Neue',sans-serif;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}code{font-family:source-code-pro,Menlo,Monaco,Consolas,'Courier New',monospace}.App{text-align:center;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);min-height:100vh;padding:20px}.header{background:rgba(255,255,255,0.1);backdrop-filter:blur(10px);padding:20px;border-radius:15px;margin-bottom:30px;color:white}.dashboard{display:grid;grid-template-columns:repeat(auto-fit,minmax(400px,1fr));gap:20px;max-width:1400px;margin:0 auto}.metric-card{background:rgba(255,255,255,0.95);padding:20px;border-radius:15px;box-shadow:0 8px 32px rgba(31,38,135,0.37);backdrop-filter:blur(4px);border:1px solid rgba(255,255,255,0.18)}.metric-card h3{color:#333;margin-top:0}.chart-container{margin-top:20px}`);
+});
+
+app.get('/static/js/main.a5683b33.js', (req, res) => {
+    res.setHeader('Content-Type', 'application/javascript');
+    res.send(`// OpenHealthView Frontend - AWS Lambda Version
+(function() {
+    const API_BASE_URL = 'https://t3nkbc4oeb.execute-api.us-east-1.amazonaws.com';
+    
+    // Simple dashboard initialization
+    document.addEventListener('DOMContentLoaded', function() {
+        const root = document.getElementById('root');
+        if (root) {
+            root.innerHTML = \`
+                <div class="App">
+                    <div class="header">
+                        <h1>🏥 OpenHealthView</h1>
+                        <p>Rural Healthcare Interoperability Dashboard</p>
+                        <p style="opacity: 0.8;">Connected to AWS Lambda API</p>
+                    </div>
+                    <div class="dashboard">
+                        <div class="metric-card">
+                            <h3>🔄 System Status</h3>
+                            <div id="health-status">Loading...</div>
+                        </div>
+                        <div class="metric-card">
+                            <h3>🏥 Rural Health Metrics</h3>
+                            <div id="rural-metrics">Loading...</div>
+                        </div>
+                        <div class="metric-card">
+                            <h3>📊 Data Pipeline Status</h3>
+                            <div id="data-status">Loading...</div>
+                        </div>
+                    </div>
+                </div>
+            \`;
+            
+            // Load health status
+            fetch(API_BASE_URL + '/health')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('health-status').innerHTML = \`
+                        <p>Status: <span style="color: green;">✅ \${data.status}</span></p>
+                        <p>Environment: \${data.environment}</p>
+                        <p>Last Updated: \${new Date(data.timestamp).toLocaleString()}</p>
+                    \`;
+                })
+                .catch(error => {
+                    document.getElementById('health-status').innerHTML = '<p style="color: red;">❌ Failed to load</p>';
+                });
+            
+            // Load rural metrics
+            fetch(API_BASE_URL + '/rural-hie')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('rural-metrics').innerHTML = \`
+                        <p>Critical Access Hospitals: <strong>\${data.ruralFacilities?.criticalAccessHospitals || 'N/A'}</strong></p>
+                        <p>Rural Health Clinics: <strong>\${data.ruralFacilities?.ruralHealthClinics || 'N/A'}</strong></p>
+                        <p>Connected Facilities: <strong>\${data.ruralFacilities?.connectedFacilities || 'N/A'}</strong></p>
+                        <p>Data Source: \${data.dataSource || 'Unknown'}</p>
+                    \`;
+                })
+                .catch(error => {
+                    document.getElementById('rural-metrics').innerHTML = '<p style="color: red;">❌ Failed to load metrics</p>';
+                });
+            
+            // Load data status
+            fetch(API_BASE_URL + '/admin/data-status')
+                .then(response => response.json())
+                .then(data => {
+                    const sources = Object.keys(data.dataSources || {});
+                    let statusHTML = \`<p>Environment: \${data.environment}</p>\`;
+                    sources.forEach(source => {
+                        const sourceData = data.dataSources[source];
+                        const status = sourceData.available ? '✅ Available' : '❌ Using Fallback';
+                        statusHTML += \`<p>\${source}: \${status}</p>\`;
+                    });
+                    document.getElementById('data-status').innerHTML = statusHTML;
+                })
+                .catch(error => {
+                    document.getElementById('data-status').innerHTML = '<p style="color: red;">❌ Failed to load status</p>';
+                });
+        }
+    });
+})();`);
+});
+
+// Rural Healthcare Interoperability Dashboard
+app.get('/rural-hie', (req, res) => {
+    const ruralHealthMetrics = {
+        timestamp: new Date().toISOString(),
+        ruralFacilities: {
+            criticalAccessHospitals: 1320, // Current CAH count in US
+            ruralHealthClinics: 4400,
+            connectedFacilities: 890,
+            pendingConnections: 430,
+            connectivityStatus: {
+                fullyConnected: 67.5,
+                partiallyConnected: 22.8,
+                offline: 9.7
+            }
+        },
+        interoperabilityMetrics: {
+            fhirR4Adoption: 34.2, // Lower in rural areas
+            hieParticipation: 45.6,
+            dataExchangeVolume: 2847,
+            averageLatency: 234, // ms
+            reliabilityScore: 94.3
+        },
+        ruralChallenges: {
+            bandwidthLimitations: {
+                facilities: 423,
+                avgBandwidth: "12.3 Mbps",
+                peakUsageIssues: 67
+            },
+            itStaffing: {
+                understaffedFacilities: 756,
+                averageItStaff: 1.8,
+                outsourcedIt: 623
+            },
+            complianceGaps: {
+                hipaaSecurity: 234,
+                meaningfulUse: 156,
+                interoperabilityStandards: 189
+            }
+        },
+        solutions: {
+            offlineCapability: true,
+            lowBandwidthOptimization: true,
+            cloudBasedEhr: true,
+            telemedicineIntegration: true,
+            mobilitySupport: true
+        },
+        sdohFactors: {
+            transportationBarriers: 78.4, // % of patients affected
+            internetAccess: 65.2, // % with reliable access
+            healthcareDeserts: 234, // Number of areas identified
+            avgTravelDistance: 47.3 // miles to nearest hospital
+        },
+        qualityMetrics: {
+            patientSafetyScore: 4.2,
+            careCoordinationIndex: 73.8,
+            preventiveCareCompletion: 67.9,
+            chronicDiseaseManagement: 71.4
+        }
+    };
+    
+    res.json(ruralHealthMetrics);
+});
+
+// Rural Facility Network Status
+app.get('/rural-network', (req, res) => {
+    const networkData = {
+        timestamp: new Date().toISOString(),
+        networkTopology: [
+            {
+                facilityId: "CAH-001",
+                name: "Prairie Regional Medical Center",
+                location: { state: "NE", county: "Cherry", population: 2800 },
+                connectivity: { status: "connected", bandwidth: "25 Mbps", latency: 45 },
+                ehrSystem: "Epic Community Connect",
+                fhirCapability: "R4 Certified",
+                services: ["emergency", "surgery", "telehealth"],
+                challengeScore: 2.3 // Low = better
+            },
+            {
+                facilityId: "RHC-045",
+                name: "Mountain View Rural Health Clinic",
+                location: { state: "WY", county: "Park", population: 1200 },
+                connectivity: { status: "intermittent", bandwidth: "8 Mbps", latency: 125 },
+                ehrSystem: "athenahealth",
+                fhirCapability: "R4 Basic",
+                services: ["primary", "telehealth", "mental_health"],
+                challengeScore: 4.1
+            },
+            {
+                facilityId: "CAH-089",
+                name: "Valley Community Hospital",
+                location: { state: "MT", county: "Phillips", population: 890 },
+                connectivity: { status: "offline", bandwidth: "0 Mbps", latency: null },
+                ehrSystem: "Paper + Limited EMR",
+                fhirCapability: "None",
+                services: ["emergency", "basic_surgery"],
+                challengeScore: 8.7 // High = major challenges
+            }
+        ],
+        aggregateMetrics: {
+            totalFacilities: 1847,
+            connectedFacilities: 1246,
+            avgChallengeScore: 3.8,
+            interoperabilityReadiness: 62.4,
+            telemedicineCapable: 1156
+        }
+    };
+    
+    res.json(networkData);
 });
 
 // Sample health data endpoint (matches frontend expectations)

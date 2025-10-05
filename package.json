@@ -19,7 +19,7 @@
   },
   "devDependencies": {
     "nodemon": "^3.0.1",
-    "serverless": "^3.38.0"
+    "serverless": "^3.40.0"
   },
   "engines": {
     "node": ">=18.0.0"

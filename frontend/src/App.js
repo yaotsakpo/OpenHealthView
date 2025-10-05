@@ -38,11 +38,16 @@ function App() {
   const [aiLoading, setAiLoading] = useState(false);
   const [healthGoals, setHealthGoals] = useState(null);
   const [aiStatus, setAiStatus] = useState(null);
+  const [ruralHieData, setRuralHieData] = useState(null);
+  const [ruralNetworkData, setRuralNetworkData] = useState(null);
+  const [activeTab, setActiveTab] = useState('dashboard');
 
   // Load sample data and AI status on component mount
   useEffect(() => {
     loadSampleData();
     fetchAIStatus();
+    fetchRuralHieData();
+    fetchRuralNetworkData();
   }, []);
 
   const loadSampleData = async () => {
@@ -111,6 +116,28 @@ function App() {
       setAiStatus(result);
     } catch (err) {
       console.error('Error fetching AI status:', err);
+    }
+  };
+
+  // Fetch Rural HIE data
+  const fetchRuralHieData = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/rural-hie`);
+      const result = await response.json();
+      setRuralHieData(result);
+    } catch (err) {
+      console.error('Error fetching Rural HIE data:', err);
+    }
+  };
+
+  // Fetch Rural Network data
+  const fetchRuralNetworkData = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/rural-network`);
+      const result = await response.json();
+      setRuralNetworkData(result);
+    } catch (err) {
+      console.error('Error fetching Rural Network data:', err);
     }
   };
 
@@ -272,25 +299,43 @@ function App() {
       </header>
 
       <main className="App-main">
-        {/* File Upload Section */}
-        <section className="upload-section">
-          <h2>Upload Health Data</h2>
-          <div className="upload-container">
-            <input
-              type="file"
-              accept=".csv"
-              onChange={handleFileUpload}
-              disabled={loading}
-              className="file-input"
-            />
-            <button 
-              onClick={loadSampleData} 
-              disabled={loading}
-              className="sample-data-btn"
-            >
-              Load Sample Data
-            </button>
-          </div>
+        {/* Navigation Tabs */}
+        <nav className="navigation-tabs">
+          <button 
+            className={`tab-button ${activeTab === 'dashboard' ? 'active' : ''}`}
+            onClick={() => setActiveTab('dashboard')}
+          >
+            Health Dashboard
+          </button>
+          <button 
+            className={`tab-button ${activeTab === 'rural-hie' ? 'active' : ''}`}
+            onClick={() => setActiveTab('rural-hie')}
+          >
+            Rural HIE Network
+          </button>
+        </nav>
+
+        {activeTab === 'dashboard' && (
+          <>
+            {/* File Upload Section */}
+            <section className="upload-section">
+              <h2>Upload Health Data</h2>
+              <div className="upload-container">
+                <input
+                  type="file"
+                  accept=".csv"
+                  onChange={handleFileUpload}
+                  disabled={loading}
+                  className="file-input"
+                />
+                <button 
+                  onClick={loadSampleData} 
+                  disabled={loading}
+                  className="sample-data-btn"
+                >
+                  Load Sample Data
+                </button>
+              </div>
           
           {loading && <div className="status loading">Loading...</div>}
           {error && <div className="status error">{error}</div>}
@@ -487,6 +532,178 @@ function App() {
               )}
             </div>
           </section>
+        )}
+        </>
+        )}
+
+        {activeTab === 'rural-hie' && (
+          <div className="rural-hie-dashboard">
+            <header className="rural-hie-header">
+              <h2>🏥 Rural Healthcare Interoperability Network</h2>
+              <p>AMIA-focused analysis of rural healthcare connectivity and data exchange</p>
+            </header>
+
+            {ruralHieData && (
+              <>
+                {/* Rural Facilities Overview */}
+                <section className="rural-metrics-section">
+                  <h3>Rural Healthcare Facilities Overview</h3>
+                  <div className="metrics-grid">
+                    <div className="metric-card">
+                      <h4>Critical Access Hospitals</h4>
+                      <div className="metric-value">{ruralHieData.ruralFacilities?.criticalAccessHospitals || 0}</div>
+                      <p>Nationwide CAH facilities</p>
+                    </div>
+                    <div className="metric-card">
+                      <h4>Rural Health Clinics</h4>
+                      <div className="metric-value">{ruralHieData.ruralFacilities?.ruralHealthClinics || 0}</div>
+                      <p>Certified RHC locations</p>
+                    </div>
+                    <div className="metric-card">
+                      <h4>Connected Facilities</h4>
+                      <div className="metric-value">{ruralHieData.ruralFacilities?.connectedFacilities || 0}</div>
+                      <p>HIE-enabled facilities</p>
+                    </div>
+                    <div className="metric-card">
+                      <h4>Pending Connections</h4>
+                      <div className="metric-value">{ruralHieData.ruralFacilities?.pendingConnections || 0}</div>
+                      <p>Awaiting HIE integration</p>
+                    </div>
+                  </div>
+                </section>
+
+                {/* Connectivity Status */}
+                <section className="connectivity-section">
+                  <h3>Rural Connectivity Status</h3>
+                  <div className="connectivity-stats">
+                    <div className="connectivity-item">
+                      <span className="status-indicator fully-connected"></span>
+                      <span>Fully Connected: {ruralHieData.ruralFacilities?.connectivityStatus?.fullyConnected || 0}%</span>
+                    </div>
+                    <div className="connectivity-item">
+                      <span className="status-indicator partially-connected"></span>
+                      <span>Partially Connected: {ruralHieData.ruralFacilities?.connectivityStatus?.partiallyConnected || 0}%</span>
+                    </div>
+                    <div className="connectivity-item">
+                      <span className="status-indicator offline"></span>
+                      <span>Offline: {ruralHieData.ruralFacilities?.connectivityStatus?.offline || 0}%</span>
+                    </div>
+                  </div>
+                </section>
+
+                {/* Interoperability Metrics */}
+                <section className="interop-metrics-section">
+                  <h3>Interoperability Metrics</h3>
+                  <div className="metrics-grid">
+                    <div className="metric-card">
+                      <h4>FHIR R4 Adoption</h4>
+                      <div className="metric-value">{ruralHieData.interoperabilityMetrics?.fhirR4Adoption || 0}%</div>
+                      <p>Rural FHIR implementation rate</p>
+                    </div>
+                    <div className="metric-card">
+                      <h4>HIE Participation</h4>
+                      <div className="metric-value">{ruralHieData.interoperabilityMetrics?.hieParticipation || 0}%</div>
+                      <p>Active in health information exchange</p>
+                    </div>
+                    <div className="metric-card">
+                      <h4>Data Exchange Volume</h4>
+                      <div className="metric-value">{ruralHieData.interoperabilityMetrics?.dataExchangeVolume || 0}</div>
+                      <p>Daily transactions (thousands)</p>
+                    </div>
+                    <div className="metric-card">
+                      <h4>Reliability Score</h4>
+                      <div className="metric-value">{ruralHieData.interoperabilityMetrics?.reliabilityScore || 0}%</div>
+                      <p>Network uptime and reliability</p>
+                    </div>
+                  </div>
+                </section>
+
+                {/* Rural Challenges */}
+                <section className="challenges-section">
+                  <h3>Rural Healthcare IT Challenges</h3>
+                  <div className="challenges-grid">
+                    <div className="challenge-card">
+                      <h4>🌐 Bandwidth Limitations</h4>
+                      <p><strong>{ruralHieData.ruralChallenges?.bandwidthLimitations?.facilities || 0}</strong> facilities affected</p>
+                      <p>Average: {ruralHieData.ruralChallenges?.bandwidthLimitations?.avgBandwidth || 'N/A'}</p>
+                      <p>Peak usage issues: {ruralHieData.ruralChallenges?.bandwidthLimitations?.peakUsageIssues || 0}</p>
+                    </div>
+                    <div className="challenge-card">
+                      <h4>👥 IT Staffing</h4>
+                      <p><strong>{ruralHieData.ruralChallenges?.itStaffing?.understaffedFacilities || 0}</strong> understaffed facilities</p>
+                      <p>Average IT staff: {ruralHieData.ruralChallenges?.itStaffing?.averageItStaff || 0}</p>
+                      <p>Outsourced IT: {ruralHieData.ruralChallenges?.itStaffing?.outsourcedIt || 0}</p>
+                    </div>
+                    <div className="challenge-card">
+                      <h4>⚖️ Compliance Gaps</h4>
+                      <p>HIPAA Security: {ruralHieData.ruralChallenges?.complianceGaps?.hipaaSecurity || 0}</p>
+                      <p>Meaningful Use: {ruralHieData.ruralChallenges?.complianceGaps?.meaningfulUse || 0}</p>
+                      <p>Interop Standards: {ruralHieData.ruralChallenges?.complianceGaps?.interoperabilityStandards || 0}</p>
+                    </div>
+                  </div>
+                </section>
+
+                {/* SDOH Factors */}
+                <section className="sdoh-section">
+                  <h3>Social Determinants of Health - Rural Impact</h3>
+                  <div className="sdoh-metrics">
+                    <div className="sdoh-card">
+                      <h4>🚗 Transportation Barriers</h4>
+                      <div className="sdoh-value">{ruralHieData.sdohFactors?.transportationBarriers || 0}%</div>
+                      <p>Patients affected by transport issues</p>
+                    </div>
+                    <div className="sdoh-card">
+                      <h4>🌐 Internet Access</h4>
+                      <div className="sdoh-value">{ruralHieData.sdohFactors?.internetAccess || 0}%</div>
+                      <p>Reliable broadband availability</p>
+                    </div>
+                    <div className="sdoh-card">
+                      <h4>🏥 Healthcare Deserts</h4>
+                      <div className="sdoh-value">{ruralHieData.sdohFactors?.healthcareDeserts || 0}</div>
+                      <p>Areas identified as underserved</p>
+                    </div>
+                    <div className="sdoh-card">
+                      <h4>🛣️ Travel Distance</h4>
+                      <div className="sdoh-value">{ruralHieData.sdohFactors?.avgTravelDistance || 0} mi</div>
+                      <p>Average to nearest hospital</p>
+                    </div>
+                  </div>
+                </section>
+              </>
+            )}
+
+            {ruralNetworkData && (
+              <section className="network-topology-section">
+                <h3>Rural Network Topology Sample</h3>
+                <div className="facility-network">
+                  {ruralNetworkData.networkTopology?.map((facility, index) => (
+                    <div key={index} className={`facility-card challenge-level-${Math.floor(facility.challengeScore || 0)}`}>
+                      <div className="facility-header">
+                        <h4>{facility.name}</h4>
+                        <span className={`status-badge ${facility.connectivity?.status || 'unknown'}`}>
+                          {facility.connectivity?.status || 'Unknown'}
+                        </span>
+                      </div>
+                      <div className="facility-details">
+                        <p><strong>Location:</strong> {facility.location?.county}, {facility.location?.state}</p>
+                        <p><strong>Population Served:</strong> {facility.location?.population?.toLocaleString()}</p>
+                        <p><strong>EHR System:</strong> {facility.ehrSystem}</p>
+                        <p><strong>FHIR Capability:</strong> {facility.fhirCapability}</p>
+                        <p><strong>Bandwidth:</strong> {facility.connectivity?.bandwidth || 'N/A'}</p>
+                        <p><strong>Challenge Score:</strong> {facility.challengeScore}/10</p>
+                      </div>
+                      <div className="services">
+                        <strong>Services:</strong>
+                        {facility.services?.map((service, sIndex) => (
+                          <span key={sIndex} className="service-tag">{service.replace('_', ' ')}</span>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+          </div>
         )}
       </main>
     </div>
